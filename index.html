@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <h1>我的待办事项</h1>
+        
+        <!-- 日历部分 -->
+        <div class="calendar-section">
+            <div class="calendar-header">
+                <button id="prev-month"><i class="fas fa-chevron-left"></i></button>
+                <h2 id="current-month"></h2>
+                <button id="next-month"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <div id="calendar"></div>
+            <div class="current-date-info">
+                <span id="selected-date">今天</span>
+            </div>
+        </div>
+        
+        <!-- 待办事项输入部分 -->
+        <div class="input-container">
+            <input type="text" id="todo-input" placeholder="添加新的待办事项...">
+            <input type="date" id="todo-date" value="">
+            <button id="add-btn">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+        
+        <!-- 筛选部分 -->
+        <div class="filter-container">
+            <button class="filter-btn active" data-filter="all">全部</button>
+            <button class="filter-btn" data-filter="active">未完成</button>
+            <button class="filter-btn" data-filter="completed">已完成</button>
+            <button class="filter-btn" data-filter="today">今天</button>
+        </div>
+        
+        <!-- 待办事项列表 -->
+        <ul id="todo-list">
+            <!-- 待办事项将通过JavaScript动态添加 -->
+        </ul>
+        
+        <!-- 统计和操作部分 -->
+        <div class="stats-container">
+            <span id="task-count">0 个待办事项</span>
+            <div>
+                <button id="inherit-btn">继承到明天</button>
+                <button id="clear-btn">清除已完成</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
