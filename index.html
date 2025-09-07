@@ -26,11 +26,26 @@
         
         <!-- 待办事项输入部分 -->
         <div class="input-container">
-            <input type="text" id="todo-input" placeholder="添加新的待办事项...">
+            <div class="todo-form-grid">
+                <input type="text" id="todo-type" placeholder="事项类型（如：工作、学习、生活）" data-tab-index="1">
+                <input type="text" id="todo-object" placeholder="行为对象" data-tab-index="2">
+                <input type="text" id="todo-action" placeholder="具体行为" data-tab-index="3">
+            </div>
             <input type="date" id="todo-date" value="">
             <button id="add-btn">
                 <i class="fas fa-plus"></i>
             </button>
+        </div>
+        
+        <!-- 子事项输入部分 -->
+        <div class="subtask-container" id="subtask-container">
+            <div class="subtask-header">
+                <h3>子事项</h3>
+                <button id="add-subtask-btn">添加子事项</button>
+            </div>
+            <div id="subtask-list">
+                <!-- 子事项将通过JavaScript动态添加 -->
+            </div>
         </div>
         
         <!-- 筛选部分 -->

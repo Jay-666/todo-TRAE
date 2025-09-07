@@ -1,5 +1,7 @@
 // DOM元素
-const todoInput = document.getElementById('todo-input');
+const todoType = document.getElementById('todo-type');
+const todoObject = document.getElementById('todo-object');
+const todoAction = document.getElementById('todo-action');
 const todoDate = document.getElementById('todo-date');
 const addBtn = document.getElementById('add-btn');
 const todoList = document.getElementById('todo-list');
@@ -12,6 +14,12 @@ const currentMonthEl = document.getElementById('current-month');
 const prevMonthBtn = document.getElementById('prev-month');
 const nextMonthBtn = document.getElementById('next-month');
 const selectedDateEl = document.getElementById('selected-date');
+const subtaskContainer = document.getElementById('subtask-container');
+const subtaskList = document.getElementById('subtask-list');
+const addSubtaskBtn = document.getElementById('add-subtask-btn');
+
+// 当前待添加的子事项列表
+let currentSubtasks = [];
 
 // 待办事项列表
 let todos = [];
@@ -81,22 +89,169 @@ function saveTodos() {
 
 // 添加新的待办事项
 function addTodo() {
-    const text = todoInput.value.trim();
+    const type = todoType.value.trim();
+    const object = todoObject.value.trim();
+    const action = todoAction.value.trim();
     const date = todoDate.value || formatDate(new Date());
-    if (text) {
+    
+    // 至少需要一个字段有内容
+    if (type || object || action) {
+        // 构建完整的待办事项文本 - 使用"-"连接各要素
+        let fullText = [type, object, action].filter(Boolean).join(' - ');
+        
         const newTodo = {
             id: Date.now().toString(),
-            text,
+            text: fullText,
+            type: type,
+            object: object,
+            action: action,
             completed: false,
             date: date,
             createdAt: date, // 记录原始创建日期
-            inherited: false // 是否是继承的任务
+            inherited: false, // 是否是继承的任务
+            subtasks: currentSubtasks.map(subtask => ({
+                id: subtask.id,
+                text: subtask.text,
+                completed: false
+            }))
         };
+        
         todos.push(newTodo);
-        todoInput.value = '';
+        
+        // 清空输入
+        todoType.value = '';
+        todoObject.value = '';
+        todoAction.value = '';
+        currentSubtasks = [];
+        renderSubtasks();
+        
         saveTodos();
         renderTodos();
         renderCalendar(); // 添加任务后更新日历显示
+    }
+}
+
+// 编辑待办事项
+function editTodo(id) {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+    
+    // 创建编辑表单
+    const form = document.createElement('form');
+    form.className = 'edit-todo-form';
+    form.innerHTML = `
+        <div class="edit-input-group">
+            <input type="text" name="type" value="${todo.type || ''}" placeholder="类型">
+            <span>-</span>
+            <input type="text" name="object" value="${todo.object || ''}" placeholder="对象">
+            <span>-</span>
+            <input type="text" name="action" value="${todo.action || ''}" placeholder="行为">
+        </div>
+        <div class="form-actions">
+            <button type="submit">保存</button>
+            <button type="button" class="cancel-edit">取消</button>
+        </div>
+    `;
+    
+    // 找到对应的待办事项项
+    const todosItems = document.querySelectorAll('.todo-item');
+    let targetItem;
+    
+    todosItems.forEach(item => {
+        const deleteBtn = item.querySelector(`.delete-btn[data-id="${id}"]`);
+        if (deleteBtn) {
+            targetItem = item;
+        }
+    });
+    
+    if (targetItem) {
+        const originalContent = targetItem.innerHTML;
+        const originalClasses = targetItem.className;
+        
+        // 清空并添加表单
+        targetItem.innerHTML = '';
+        targetItem.appendChild(form);
+        
+        // 提交表单
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            todo.type = form.elements.type.value;
+            todo.object = form.elements.object.value;
+            todo.action = form.elements.action.value;
+            saveTodos();
+            renderTodos();
+        });
+        
+        // 取消编辑
+        form.querySelector('.cancel-edit').addEventListener('click', () => {
+            targetItem.innerHTML = originalContent;
+            targetItem.className = originalClasses;
+            bindEventListeners();
+        });
+    }
+}
+
+// 添加子事项
+function addSubtask() {
+    const subtaskId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    currentSubtasks.push({
+        id: subtaskId,
+        text: ''
+    });
+    renderSubtasks();
+    
+    // 自动聚焦到新添加的子事项输入框
+    const newInput = document.querySelector(`[data-subtask-id="${subtaskId}"]`);
+    if (newInput) {
+        newInput.focus();
+    }
+}
+
+// 渲染子事项输入框
+function renderSubtasks() {
+    subtaskList.innerHTML = '';
+    
+    currentSubtasks.forEach((subtask, index) => {
+        const subtaskItem = document.createElement('div');
+        subtaskItem.className = 'subtask-item';
+        subtaskItem.innerHTML = `
+            <input type="text" data-subtask-id="${subtask.id}" value="${subtask.text}" placeholder="子事项 ${index + 1}">
+            <button class="remove-subtask-btn" data-subtask-id="${subtask.id}">移除</button>
+        `;
+        subtaskList.appendChild(subtaskItem);
+    });
+    
+    // 绑定子事项输入框事件
+    document.querySelectorAll('.subtask-item input').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const subtaskId = e.target.dataset.subtaskId;
+            const subtask = currentSubtasks.find(s => s.id === subtaskId);
+            if (subtask) {
+                subtask.text = e.target.value;
+            }
+        });
+    });
+    
+    // 绑定移除子事项按钮事件
+    document.querySelectorAll('.remove-subtask-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const subtaskId = e.currentTarget.dataset.subtaskId;
+            currentSubtasks = currentSubtasks.filter(s => s.id !== subtaskId);
+            renderSubtasks();
+        });
+    });
+}
+
+// 切换子事项的完成状态
+function toggleSubtask(todoId, subtaskId) {
+    const todo = todos.find(t => t.id === todoId);
+    if (todo && todo.subtasks) {
+        const subtask = todo.subtasks.find(s => s.id === subtaskId);
+        if (subtask) {
+            subtask.completed = !subtask.completed;
+            saveTodos();
+            renderTodos();
+        }
     }
 }
 
@@ -166,14 +321,46 @@ function renderTodos() {
             inheritedBadge = `<span class="inherited-badge" title="创建于 ${originalDate}">继承自 ${originalDate}</span>`;
         }
         
+        // 构建子事项HTML（带展开收起功能）
+        let subtasksHtml = '';
+        if (todo.subtasks && todo.subtasks.length > 0) {
+            subtasksHtml = `
+                <div class="subtasks-wrapper">
+                    <button class="toggle-subtasks-btn" data-todo-id="${todo.id}">
+                        <i class="fas fa-chevron-right"></i> 展开(${todo.subtasks.length})
+                    </button>
+                    <div class="subtasks-list hidden" id="subtasks-${todo.id}">
+                        ${todo.subtasks.map(subtask => `
+                            <div class="subtask" draggable="true" data-todo-id="${todo.id}" data-subtask-id="${subtask.id}">
+                                <span class="drag-handle"><i class="fas fa-grip-lines"></i></span>
+                                <input type="checkbox" data-todo-id="${todo.id}" data-subtask-id="${subtask.id}" ${subtask.completed ? 'checked' : ''}>
+                                <span class="subtask-text ${subtask.completed ? 'subtask-completed' : ''}">${subtask.text}</span>
+                            </div>
+                        `).join('')}
+                        <div class="add-subtask-wrapper">
+                            <button class="add-subtask-inline-btn" data-todo-id="${todo.id}">
+                                <i class="fas fa-plus"></i> 添加子事项
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
         li.innerHTML = `
             <input type="checkbox" id="todo-${todo.id}" ${todo.completed ? 'checked' : ''}>
             <label for="todo-${todo.id}">${todo.text}</label>
             <span class="todo-date">${displayDate}</span>
             ${inheritedBadge}
-            <button class="delete-btn" data-id="${todo.id}">
-                <i class="fas fa-times"></i>
-            </button>
+            <div class="todo-actions">
+                <button class="edit-btn" data-id="${todo.id}">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="delete-btn" data-id="${todo.id}">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            ${subtasksHtml}
         `;
         todoList.appendChild(li);
     });
@@ -196,11 +383,20 @@ function formatDisplayDate(dateStr) {
 
 // 绑定事件监听器
 function bindEventListeners() {
-    // 为复选框绑定点击事件
-    document.querySelectorAll('#todo-list input[type="checkbox"]').forEach(checkbox => {
+    // 为待办事项复选框绑定点击事件
+    document.querySelectorAll('#todo-list input[type="checkbox"]:not([data-subtask-id])').forEach(checkbox => {
         checkbox.addEventListener('change', (e) => {
             const id = e.target.id.replace('todo-', '');
             toggleTodo(id);
+        });
+    });
+    
+    // 为子事项复选框绑定点击事件
+    document.querySelectorAll('#todo-list input[type="checkbox"][data-subtask-id]').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+            const todoId = e.target.dataset.todoId;
+            const subtaskId = e.target.dataset.subtaskId;
+            toggleSubtask(todoId, subtaskId);
         });
     });
     
@@ -209,6 +405,154 @@ function bindEventListeners() {
         btn.addEventListener('click', (e) => {
             const id = e.currentTarget.dataset.id;
             deleteTodo(id);
+        });
+    });
+    
+    // 为编辑按钮绑定点击事件
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.currentTarget.dataset.id;
+            editTodo(id);
+        });
+    });
+    
+    // 为子事项展开收起按钮绑定点击事件
+    document.querySelectorAll('.toggle-subtasks-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const todoId = e.currentTarget.dataset.todoId;
+            const subtasksList = document.getElementById(`subtasks-${todoId}`);
+            const icon = btn.querySelector('i');
+            const text = btn.textContent.trim();
+            
+            if (subtasksList) {
+                subtasksList.classList.toggle('hidden');
+                if (icon) {
+                    if (subtasksList.classList.contains('hidden')) {
+                        icon.classList.remove('fa-chevron-down');
+                        icon.classList.add('fa-chevron-right');
+                        btn.innerHTML = '<i class="fas fa-chevron-right"></i> 展开(' + text.match(/\d+/)[0] + ')';
+                    } else {
+                        icon.classList.remove('fa-chevron-right');
+                        icon.classList.add('fa-chevron-down');
+                        btn.innerHTML = '<i class="fas fa-chevron-down"></i> 收起(' + text.match(/\d+/)[0] + ')';
+                    }
+                }
+            }
+        });
+    });
+    
+    // 为内联添加子事项按钮绑定点击事件
+    document.querySelectorAll('.add-subtask-inline-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const todoId = e.currentTarget.dataset.todoId;
+            addSubtaskToExistingTodo(todoId);
+        });
+    });
+    
+    // 设置子事项拖拽排序
+    setupDragAndDrop();
+}
+
+// 向现有事项添加子事项
+function addSubtaskToExistingTodo(todoId) {
+    const todo = todos.find(t => t.id === todoId);
+    if (todo) {
+        // 如果没有subtasks数组，先创建
+        if (!todo.subtasks) {
+            todo.subtasks = [];
+        }
+        
+        // 添加新的子事项
+        const newSubtaskId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        todo.subtasks.push({
+            id: newSubtaskId,
+            text: '新子事项',
+            completed: false
+        });
+        
+        saveTodos();
+        renderTodos();
+        
+        // 聚焦到新添加的子事项进行编辑
+        setTimeout(() => {
+            const subtask = document.querySelector(`[data-subtask-id="${newSubtaskId}"]`);
+            if (subtask) {
+                // 这里可以触发编辑模式
+                console.log('新子事项已添加，可在此处实现编辑模式');
+            }
+        }, 100);
+    }
+}
+
+// 设置子事项拖拽排序
+function setupDragAndDrop() {
+    let draggedItem = null;
+    
+    document.querySelectorAll('.subtask[draggable="true"]').forEach(item => {
+        // 拖拽开始
+        item.addEventListener('dragstart', (e) => {
+            draggedItem = e.target;
+            setTimeout(() => {
+                e.target.style.opacity = '0.5';
+            }, 0);
+        });
+        
+        // 拖拽结束
+        item.addEventListener('dragend', (e) => {
+            draggedItem = null;
+            document.querySelectorAll('.subtask').forEach(subtask => {
+                subtask.style.opacity = '1';
+                subtask.classList.remove('drag-over');
+            });
+        });
+        
+        // 拖拽经过
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            return false;
+        });
+        
+        // 拖拽进入
+        item.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            if (e.target.classList.contains('subtask') && e.target !== draggedItem) {
+                e.target.classList.add('drag-over');
+            }
+        });
+        
+        // 拖拽离开
+        item.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            if (e.target.classList.contains('subtask')) {
+                e.target.classList.remove('drag-over');
+            }
+        });
+        
+        // 拖拽放置
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (e.target.classList.contains('subtask') && e.target !== draggedItem) {
+                const todoId = draggedItem.dataset.todoId;
+                const draggedSubtaskId = draggedItem.dataset.subtaskId;
+                const targetSubtaskId = e.target.dataset.subtaskId;
+                
+                // 找到对应的todo和子事项
+                const todo = todos.find(t => t.id === todoId);
+                if (todo && todo.subtasks) {
+                    const draggedIndex = todo.subtasks.findIndex(s => s.id === draggedSubtaskId);
+                    const targetIndex = todo.subtasks.findIndex(s => s.id === targetSubtaskId);
+                    
+                    if (draggedIndex !== -1 && targetIndex !== -1) {
+                        // 重新排序子事项
+                        const [draggedSubtask] = todo.subtasks.splice(draggedIndex, 1);
+                        todo.subtasks.splice(targetIndex, 0, draggedSubtask);
+                        
+                        saveTodos();
+                        renderTodos();
+                    }
+                }
+            }
+            return false;
         });
     });
 }
@@ -316,11 +660,18 @@ function inheritToTomorrow() {
     todayUncompletedTasks.forEach(task => {
         const inheritedTask = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            text: task.text,
+            text: task.text, // 保持原始文本格式（已使用"-"连接）
+            type: task.type,
+            object: task.object,
+            action: task.action,
             completed: false,
             date: tomorrowStr,
             createdAt: task.createdAt,
-            inherited: true
+            inherited: true,
+            subtasks: task.subtasks ? task.subtasks.map(subtask => ({
+                ...subtask,
+                completed: false
+            })) : []
         };
         todos.push(inheritedTask);
     });
@@ -347,35 +698,100 @@ function addSampleTasks() {
         const sampleTasks = [
             {
                 id: 'sample-1',
-                text: '完成项目提案',
+                text: '工作 - 项目提案 - 完成初稿', // 使用"-"连接
+                type: '工作',
+                object: '项目提案',
+                action: '完成初稿',
                 completed: false,
                 date: today,
                 createdAt: today,
-                inherited: false
+                inherited: false,
+                subtasks: [
+                    {
+                        id: 'sub-1-1',
+                        text: '收集项目需求',
+                        completed: false
+                    },
+                    {
+                        id: 'sub-1-2',
+                        text: '撰写项目概述',
+                        completed: false
+                    },
+                    {
+                        id: 'sub-1-3',
+                        text: '制定时间表',
+                        completed: false
+                    }
+                ]
             },
             {
                 id: 'sample-2',
-                text: '回复重要邮件',
+                text: '工作 - 重要邮件 - 回复客户', // 使用"-"连接
+                type: '工作',
+                object: '重要邮件',
+                action: '回复客户',
                 completed: true,
                 date: today,
                 createdAt: today,
-                inherited: false
+                inherited: false,
+                subtasks: [
+                    {
+                        id: 'sub-2-1',
+                        text: '确认会议时间',
+                        completed: true
+                    },
+                    {
+                        id: 'sub-2-2',
+                        text: '发送会议议程',
+                        completed: true
+                    }
+                ]
             },
             {
                 id: 'sample-3',
-                text: '准备会议材料',
+                text: '学习 - 会议材料 - 准备演示文稿', // 使用"-"连接
+                type: '学习',
+                object: '会议材料',
+                action: '准备演示文稿',
                 completed: false,
                 date: yesterdayStr,
                 createdAt: yesterdayStr,
-                inherited: true
+                inherited: true,
+                subtasks: [
+                    {
+                        id: 'sub-3-1',
+                        text: '整理数据',
+                        completed: true
+                    },
+                    {
+                        id: 'sub-3-2',
+                        text: '制作PPT',
+                        completed: false
+                    }
+                ]
             },
             {
                 id: 'sample-4',
-                text: '锻炼30分钟',
+                text: '生活 - 身体健康 - 锻炼30分钟', // 使用"-"连接
+                type: '生活',
+                object: '身体健康',
+                action: '锻炼30分钟',
                 completed: false,
                 date: tomorrowStr,
                 createdAt: tomorrowStr,
-                inherited: false
+                inherited: false,
+                subtasks: [
+                    {
+                        id: 'sub-4-1',
+                        text: '热身10分钟',
+                        completed: false
+                    },
+                    {
+                        id: 'sub-4-2',
+                        text: '有氧运动20分钟',
+                        completed: false
+                    }
+                ]
             }
         ];
         
@@ -384,6 +800,21 @@ function addSampleTasks() {
         renderTodos();
         renderCalendar();
     }
+}
+
+// 添加Tab键切换功能
+function setupTabNavigation() {
+    const inputs = [todoType, todoObject, todoAction];
+    
+    inputs.forEach((input, index) => {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const nextIndex = (index + 1) % inputs.length;
+                inputs[nextIndex].focus();
+            }
+        });
+    });
 }
 
 // 初始化应用
@@ -397,46 +828,63 @@ function initApp() {
     // 初始化日历
     renderCalendar();
     
-    // 添加事件监听器
-    addBtn.addEventListener('click', addTodo);
+    // 初始化子事项输入区域
+    renderSubtasks();
+    
+    // 设置Tab键导航
+    setupTabNavigation();
+    
+    // 添加事件监听器（添加null检查）
+    if (addBtn) addBtn.addEventListener('click', addTodo);
+    if (addSubtaskBtn) addSubtaskBtn.addEventListener('click', addSubtask);
     
     // 按Enter键添加待办事项
-    todoInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            addTodo();
+    [todoType, todoObject, todoAction].forEach(input => {
+        if (input) {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    addTodo();
+                }
+            });
         }
     });
     
     // 为筛选按钮添加事件监听器
-    filterBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const filter = btn.dataset.filter;
-            setFilter(filter);
-            
-            // 更新选中日期显示
-            if (filter === 'all') {
-                selectedDateEl.textContent = '所有日期';
-            } else if (filter === 'today') {
-                selectedDateEl.textContent = '今天';
-            } else if (filter === 'active' || filter === 'completed') {
-                selectedDateEl.textContent = '所有日期';
-            } else {
-                selectedDate = filter;
-                selectedDateEl.textContent = `选中: ${formatDisplayDate(selectedDate)}`;
-                renderCalendar();
+    if (filterBtns) {
+        filterBtns.forEach(btn => {
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    const filter = btn.dataset.filter;
+                    setFilter(filter);
+                    
+                    // 更新选中日期显示
+                    if (selectedDateEl) {
+                        if (filter === 'all') {
+                            selectedDateEl.textContent = '所有日期';
+                        } else if (filter === 'today') {
+                            selectedDateEl.textContent = '今天';
+                        } else if (filter === 'active' || filter === 'completed') {
+                            selectedDateEl.textContent = '所有日期';
+                        } else {
+                            selectedDate = filter;
+                            selectedDateEl.textContent = `选中: ${formatDisplayDate(selectedDate)}`;
+                            renderCalendar();
+                        }
+                    }
+                });
             }
         });
-    });
+    }
     
     // 为清除按钮添加事件监听器
-    clearBtn.addEventListener('click', clearCompleted);
+    if (clearBtn) clearBtn.addEventListener('click', clearCompleted);
     
     // 为继承按钮添加事件监听器
-    inheritBtn.addEventListener('click', inheritToTomorrow);
+    if (inheritBtn) inheritBtn.addEventListener('click', inheritToTomorrow);
     
     // 为月份切换按钮添加事件监听器
-    prevMonthBtn.addEventListener('click', prevMonth);
-    nextMonthBtn.addEventListener('click', nextMonth);
+    if (prevMonthBtn) prevMonthBtn.addEventListener('click', prevMonth);
+    if (nextMonthBtn) nextMonthBtn.addEventListener('click', nextMonth);
 }
 
 // 启动应用
